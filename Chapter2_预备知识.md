@@ -1,3 +1,10 @@
+### 2 预备知识
+- GPU支持加速计算
+- 张量类支持自动微分
+#### 2.1 数据操作
+##### 2.1.1 入门
+
+
 ```python
 import torch
 x = torch.arange(12)
@@ -462,7 +469,7 @@ multinomial.Multinomial(10, fair_probs).sample()
 
 ```python
 from torch.distributions import multinomial
-fari_probs = torch.ones([6]) / 6
+fair_probs = torch.ones([6]) / 6
 
 counts = multinomial.Multinomial(1000, fari_probs).sample()
 counts / 1000
@@ -471,7 +478,7 @@ counts / 1000
 
 
 
-    tensor([0.1780, 0.1660, 0.1590, 0.1750, 0.1600, 0.1620])
+    tensor([0.1900, 0.1580, 0.1730, 0.1710, 0.1490, 0.1590])
 
 
 
@@ -495,6 +502,6 @@ plt.legend();
 
 
     
-![png](Chapter2_%E9%A2%84%E5%A4%87%E7%9F%A5%E8%AF%86_files/Chapter2_%E9%A2%84%E5%A4%87%E7%9F%A5%E8%AF%86_42_0.png)
+![png](Chapter2_%E9%A2%84%E5%A4%87%E7%9F%A5%E8%AF%86_files/Chapter2_%E9%A2%84%E5%A4%87%E7%9F%A5%E8%AF%86_43_0.png)
     
 
