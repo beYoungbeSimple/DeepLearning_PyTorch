@@ -66,6 +66,24 @@ def evaluate_accuracy(net, data_iter): #@save
             metric.add(accuracy(net(x), y), y.numel())
     return metric[0] / metric[1]
 
+def evaluate_loss(net, data_iter, loss):
+    total_loss, total_num = 0.0, 0
+
+    with torch.no_grad():
+        for X, y in data_iter:
+            y_hat = net(X)
+            l = loss(y_hat, y)
+            total_loss += l.sum().item()
+            total_num += y.numel()
+    return total_loss / total_num
+
+def sgd(params, lr, batch_size):    #@save
+    """小批量随机梯度下降"""
+    with torch.no_grad():       # 禁用梯度跟踪，不构建计算图
+        for param in params:
+            param -= lr * param.grad / batch_size   # 更新参数
+            param.grad.zero_()   # 清零梯度
+
 # 动画绘制
 def set_axes(axes, xlabel, ylabel, xlim, ylim, xscale, yscale, legend):
     axes.set_xlabel(xlabel)
@@ -107,7 +125,7 @@ class Animator: #@save
             if a is not None and b is not None:
                 self.X[i].append(a)
                 self.Y[i].append(b)
-        self.axes[0].clear()
+        self.axes[0].cla()
         for x_line, y_line, fmt in zip(self.X, self.Y, self.fmts):
             self.axes[0].plot(x_line, y_line, fmt)
         self.config_axes()
@@ -182,3 +200,14 @@ def predict_ch3(net, test_iter, n=6): #@save
     titles = [true + '\n' + pred for true, pred in zip(trues, preds)]
 
     show_images(X[0:n].reshape((n, 28, 28)), 1, n, titles=titles[0:n])
+
+def load_array(data_arrays, batch_size, is_train=True): #@save
+    """构造一个PyTorch数据迭代器"""
+    dataset = data.TensorDataset(*data_arrays)
+    return data.DataLoader(dataset, batch_size=batch_size, shuffle=is_train)
+
+def synthetic_data(w, b, num_examples):
+    X = torch.normal(0, 1, (num_examples, len(w)))
+    y = torch.matmul(X, w) + b
+    y += torch.normal(0, 0.01, y.shape)
+    return X, y.reshape((-1, 1))
