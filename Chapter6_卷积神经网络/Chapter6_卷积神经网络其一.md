@@ -30,7 +30,7 @@ $$(f*g)(i,j)=\sum_a\sum_b f(a,b)g(i-a,j-b)$$
 目标：学习一个模型，检测出“沃尔多”最可能出现的地方。
 - **通道**
 对于彩色图像，包含3个通道，是一个由高度、宽度、颜色组成的三维张量，如下表示：
-$$[\mathbf{H}]_{i,j，d}=u+\sum_{a=-\Delta}^{\Delta}\sum_{b=-\Delta}^{\Delta}\sum_c[\mathbf{V}]_{a,b,c,d}[\mathbf{X}]_{i+a,j+b,c}$$
+$$[\mathbf{H}]_{i,j,d}=u+\sum_{a=-\Delta}^{\Delta}\sum_{b=-\Delta}^{\Delta}\sum_c[\mathbf{V}]_{a,b,c,d}[\mathbf{X}]_{i+a,j+b,c}$$
 
 #### 6.2 图像卷积
 ##### 6.2.1 互相关运算
