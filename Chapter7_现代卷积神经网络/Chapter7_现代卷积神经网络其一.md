@@ -177,7 +177,8 @@ def vgg(conv_arch):
         *conv_blks, nn.Flatten(),
         # 全连接层
         nn.Linear(out_channels * 7 * 7, 4096), nn.ReLU(), nn.Dropout(0.5),
-        nn.Linear(4096, 4096)
+        nn.Linear(4096, 4096), nn.ReLU(), nn.Dropout(0.5),
+        nn.Linear(4096, 10)
     )
 net = vgg(conv_arch)
 ```
@@ -200,6 +201,9 @@ for blk in net:
     ReLU output shape:	 torch.Size([1, 4096])
     Dropout output shape:	 torch.Size([1, 4096])
     Linear output shape:	 torch.Size([1, 4096])
+    ReLU output shape:	 torch.Size([1, 4096])
+    Dropout output shape:	 torch.Size([1, 4096])
+    Linear output shape:	 torch.Size([1, 10])
     
 
 ##### 7.2.3 训练模型
@@ -218,8 +222,8 @@ train_iter, test_iter = d2l.load_data_fashion_mnist(batch_size, resize=224)
 d2l.train_ch6(net, train_iter, test_iter, num_epochs, lr, torch.device('cuda:0'))
 ```
 
-    loss nan, train acc 0.100, test acc 0.100
-    1015.4 examples/sec on cuda:0
+    loss 0.176, train acc 0.936, test acc 0.922
+    990.6 examples/sec on cuda:0
     
 
 
