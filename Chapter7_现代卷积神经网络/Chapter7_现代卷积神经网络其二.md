@@ -63,11 +63,11 @@ for layer in net:
 ```python
 lr, num_epochs, batch_size = 0.1, 10, 128
 train_iter, test_iter = d2l.load_data_fashion_mnist(batch_size, resize=224)
-d2l.train_ch6(net, train_iter, test_iter, num_epochs, lr, torch.device('cuda:0'))
+d2l.train_ch6(net, train_iter, test_iter, num_epochs, lr, torch.device('mps'))
 ```
 
-    loss 0.358, train acc 0.867, test acc 0.851
-    1156.3 examples/sec on cuda:0
+    loss 0.333, train acc 0.876, test acc 0.873
+    1929.4 examples/sec on mps
 
 
 
@@ -98,205 +98,105 @@ GoogLeNet吸收了NiN中串联网络的思想，并在此基础上做出改进�
 ##### 7.4.1 Inception块
 GoogLeNet中基本的卷积块为Inception块，由4条并行路径组成，前3条路径使用窗口为1×1、3×3、5×5的卷积层，从不同空间大小中提取信息。中间的2条路径在输入上执行1×1卷积，以减少通道数，降低模型复杂度。第4条路径使用3×3最大汇聚层，然后使用1×1卷积层来改变通道数。这4条路径都是用合适的填充以使输入与输出的高度和宽度一致，最后将每条路径的输出在通道维度上合并，构成Inception块输出。
 
+**设计思路**：
+不明确3×3还是5×5卷积块更有效，就让网络自己学。为了避免计算量爆炸，引入1×1卷积块降维，把计算成本控制在合理范围。各路径的通道数比例出自经验判断。
+
 
 ```python
+import torch
+from torch import nn
 from torch.nn import functional as F
+from d2l import torch as d2l
 
 class Inception(nn.Module):
     # c1~c4是每条路径的输出通道
     def __init__(self, in_channels, c1, c2, c3, c4, **kwargs):
         super(Inception, self).__init__(**kwargs)
         # 路径1：单1×1网络
-
+        self.p1_1 = nn.Conv2d(in_channels, c1, kernel_size=1)
+        # 路径2：1×1卷积层后接3×3卷积层
+        self.p2_1 = nn.Conv2d(in_channels, c2[0], kernel_size=1)
+        self.p2_2 = nn.Conv2d(c2[0], c2[1], kernel_size=3, padding=1)
+        # 路径3：1×1卷积层后接5×5卷积层
+        self.p3_1 = nn.Conv2d(in_channels, c3[0], kernel_size=1)
+        self.p3_2 = nn.Conv2d(c3[0], c3[1], kernel_size=5, padding=2)
+        # 路径4：3×3最大汇聚曾后接1×1卷积层
+        self.p4_1 = nn.MaxPool2d(kernel_size=3, stride=1, padding=1)
+        self.p4_2 = nn.Conv2d(in_channels, c4, kernel_size=1)
+    
+    def forward(self, x):
+        p1 = F.relu(self.p1_1(x))
+        p2 = F.relu(self.p2_2(F.relu(self.p2_1(x))))
+        p3 = F.relu(self.p3_2(F.relu(self.p3_1(x))))
+        p4 = F.relu(self.p4_2(self.p4_1(x)))
+        return torch.cat((p1, p2, p3, p4), dim=1)
 ```
 
-
-    ---------------------------------------------------------------------------
-
-    AttributeError                            Traceback (most recent call last)
-
-    Cell In[1], line 1
-    ----> 1 from torch.nn import functional as F
-          3 class Inception(nn.Module):
-          4     # c1~c4是每条路径的输出通道
-          5     def __init__(self, in_channels, c1, c2, c3, c4, **kwargs):
-
-
-    File E:\Anaconda\envs\d2l\lib\site-packages\torch\__init__.py:2229
-       2222 from torch._compile import _disable_dynamo  # usort: skip
-       2224 ################################################################################
-       2225 # Import interface functions defined in Python
-       2226 ################################################################################
-       2227 
-       2228 # needs to be after the above ATen bindings so we can overwrite from Python side
-    -> 2229 from torch import _VF as _VF, functional as functional  # usort: skip
-       2230 from torch.functional import *  # usort: skip # noqa: F403
-       2232 ################################################################################
-       2233 # Remove unnecessary members
-       2234 ################################################################################
-
-
-    File E:\Anaconda\envs\d2l\lib\site-packages\torch\functional.py:8
-          5 from typing import Any, TYPE_CHECKING
-          7 import torch
-    ----> 8 import torch.nn.functional as F
-          9 from torch import _VF, Tensor
-         10 from torch._C import _add_docstr
-
-
-    File E:\Anaconda\envs\d2l\lib\site-packages\torch\nn\__init__.py:8
-          1 # mypy: allow-untyped-defs
-          2 from torch.nn.parameter import (  # usort: skip
-          3     Buffer as Buffer,
-          4     Parameter as Parameter,
-          5     UninitializedBuffer as UninitializedBuffer,
-          6     UninitializedParameter as UninitializedParameter,
-          7 )
-    ----> 8 from torch.nn.modules import *  # usort: skip # noqa: F403
-          9 from torch.nn import (
-         10     attention as attention,
-         11     functional as functional,
-       (...)
-         16     utils as utils,
-         17 )
-         18 from torch.nn.parallel import DataParallel as DataParallel
-
-
-    File E:\Anaconda\envs\d2l\lib\site-packages\torch\nn\modules\__init__.py:1
-    ----> 1 from .module import Module  # usort: skip
-          2 from .linear import Bilinear, Identity, LazyLinear, Linear  # usort: skip
-          3 from .activation import (
-          4     CELU,
-          5     ELU,
-       (...)
-         32     Threshold,
-         33 )
-
-
-    File E:\Anaconda\envs\d2l\lib\site-packages\torch\nn\modules\module.py:17
-         15 from torch._prims_common import DeviceLikeType
-         16 from torch.nn.parameter import Buffer, Parameter
-    ---> 17 from torch.utils._python_dispatch import is_traceable_wrapper_subclass
-         18 from torch.utils.hooks import BackwardHook, RemovableHandle
-         21 __all__ = [
-         22     "register_module_forward_pre_hook",
-         23     "register_module_forward_hook",
-       (...)
-         30     "Module",
-         31 ]
-
-
-    File E:\Anaconda\envs\d2l\lib\site-packages\torch\utils\__init__.py:8
-          5 import weakref
-          7 import torch
-    ----> 8 from torch.utils import (
-          9     backcompat as backcompat,
-         10     collect_env as collect_env,
-         11     data as data,
-         12     deterministic as deterministic,
-         13     hooks as hooks,
-         14 )
-         15 from torch.utils.backend_registration import (
-         16     generate_methods_for_privateuse1_backend,
-         17     rename_privateuse1_backend,
-         18 )
-         19 from torch.utils.cpp_backtrace import get_cpp_backtrace
-
-
-    File E:\Anaconda\envs\d2l\lib\site-packages\torch\utils\data\__init__.py:1
-    ----> 1 from torch.utils.data.dataloader import (
-          2     _DatasetKind,
-          3     DataLoader,
-          4     default_collate,
-          5     default_convert,
-          6     get_worker_info,
-          7 )
-          8 from torch.utils.data.datapipes._decorator import (
-          9     argument_validation,
-         10     functional_datapipe,
-       (...)
-         14     runtime_validation_disabled,
-         15 )
-         16 from torch.utils.data.datapipes.datapipe import (
-         17     DataChunk,
-         18     DFIterDataPipe,
-         19     IterDataPipe,
-         20     MapDataPipe,
-         21 )
-
-
-    File E:\Anaconda\envs\d2l\lib\site-packages\torch\utils\data\dataloader.py:26
-         24 import torch
-         25 import torch.distributed as dist
-    ---> 26 import torch.utils.data.graph_settings
-         27 from torch._utils import ExceptionWrapper
-         28 from torch.utils.data import _utils
-
-
-    File E:\Anaconda\envs\d2l\lib\site-packages\torch\utils\data\graph_settings.py:8
-          5 from typing_extensions import deprecated
-          7 import torch
-    ----> 8 from torch.utils.data.datapipes.iter.sharding import (
-          9     _ShardingIterDataPipe,
-         10     SHARDING_PRIORITIES,
-         11 )
-         12 from torch.utils.data.graph import DataPipe, DataPipeGraph, traverse_dps
-         15 __all__ = [
-         16     "apply_random_seed",
-         17     "apply_sharding",
-       (...)
-         20     "get_all_graph_pipes",
-         21 ]
-
-
-    File E:\Anaconda\envs\d2l\lib\site-packages\torch\utils\data\datapipes\__init__.py:1
-    ----> 1 from torch.utils.data.datapipes import dataframe as dataframe, iter as iter, map as map
-
-
-    File E:\Anaconda\envs\d2l\lib\site-packages\torch\utils\data\datapipes\iter\__init__.py:1
-    ----> 1 from torch.utils.data.datapipes.iter.callable import (
-          2     CollatorIterDataPipe as Collator,
-          3     MapperIterDataPipe as Mapper,
-          4 )
-          5 from torch.utils.data.datapipes.iter.combinatorics import (
-          6     SamplerIterDataPipe as Sampler,
-          7     ShufflerIterDataPipe as Shuffler,
-          8 )
-          9 from torch.utils.data.datapipes.iter.combining import (
-         10     ConcaterIterDataPipe as Concater,
-         11     DemultiplexerIterDataPipe as Demultiplexer,
-       (...)
-         14     ZipperIterDataPipe as Zipper,
-         15 )
-
-
-    File E:\Anaconda\envs\d2l\lib\site-packages\torch\utils\data\datapipes\iter\callable.py:8
-          5 from typing import Any, TypeVar
-          7 import torch
-    ----> 8 from torch.utils.data._utils.collate import default_collate
-          9 from torch.utils.data.datapipes._decorator import functional_datapipe
-         10 from torch.utils.data.datapipes.dataframe import dataframe_wrapper as df_wrapper
-
-
-    File E:\Anaconda\envs\d2l\lib\site-packages\torch\utils\data\_utils\__init__.py:53
-         47     python_exit_status = True
-         50 atexit.register(_set_python_exit_flag)
-    ---> 53 from . import collate, fetch, pin_memory, signal_handling, worker
-
-
-    File E:\Anaconda\envs\d2l\lib\site-packages\torch\utils\data\_utils\collate.py:330
-        327 import numpy as np
-        329 # For both ndarray and memmap (subclass of ndarray)
-    --> 330 default_collate_fn_map[np.ndarray] = collate_numpy_array_fn
-        331 # See scalars hierarchy: https://numpy.org/doc/stable/reference/arrays.scalars.html
-        332 # Skip string scalars
-        333 default_collate_fn_map[(np.bool_, np.number, np.object_)] = collate_numpy_scalar_fn
-
-
-    AttributeError: module 'numpy' has no attribute 'ndarray'
-
+##### 7.4.2 GoogLeNet模型
+GoogLeNet模型使用9个Inception块和全局平均汇聚层的堆叠来生成其估计值。Inception块之间可最大降低维度。
+- 第一个模块使用64个通道，7×7卷积层；
+- 第二个模块使用两个卷积层，第一个卷积层使用64个通道，1×1卷积层，第二个卷积层使用3×3卷积层；
+- 第三个模块串联两个完整的Inception块，第一个Inception块的输出通道数为64+128+32+32=256，4调路径的输出通道数之比为2:4:1:1，第二条和第三条路径首先将输出通道先减少1/2和1/12，然后连接第二个卷积层。第二个Incepion块将输出通道数之比为4:6:3:2；
+- 第四个模块串联5个Inception块，输出通道数分别为512、512、512、528、832；
+- 第五个模块包含输出通道数为832和1024的两个Inception块，后面紧跟输出层。
 
 
 ```python
-
+b1 = nn.Sequential(nn.Conv2d(1, 64, kernel_size=7, stride=2, padding=3),
+                   nn.ReLU(),
+                   nn.MaxPool2d(kernel_size=3, stride=2, padding=1))
+b2 = nn.Sequential(nn.Conv2d(64, 64, kernel_size=1),
+                   nn.ReLU(),
+                   nn.Conv2d(64, 192, kernel_size=3, padding=1),
+                   nn.ReLU(),
+                   nn.MaxPool2d(kernel_size=3, stride=2, padding=1))
+b3 = nn.Sequential(Inception(192, 64, (96, 128), (16, 32), 32),
+                   Inception(256, 128, (128, 192), (32, 96), 64),
+                   nn.MaxPool2d(kernel_size=3, stride=2, padding=1))
+b4 = nn.Sequential(Inception(480, 192, (96, 208), (16, 48), 64),
+                   Inception(512, 160, (112, 224), (24, 64), 64),
+                   Inception(512, 128, (128, 256), (24, 64), 64),
+                   Inception(512, 112, (144, 288), (32, 64), 64),
+                   Inception(528, 256, (160, 320), (32, 128), 128),
+                   nn.MaxPool2d(kernel_size=3, stride=2, padding=1))
+b5 = nn.Sequential(Inception(832, 256, (160, 320), (32, 128), 128),
+                   Inception(832, 384, (192, 384), (32, 128), 128),
+                   nn.AdaptiveAvgPool2d((1, 1)),
+                   nn.Flatten())
+net = nn.Sequential(b1, b2, b3, b4, b5, nn.Linear(1024, 10))
 ```
+
+
+```python
+X = torch.rand(size=(1, 1, 96, 96))
+for layer in net:
+    X = layer(X)
+    print(layer.__class__.__name__, 'output shape:\t', X.shape)
+```
+
+    Sequential output shape:	 torch.Size([1, 64, 24, 24])
+    Sequential output shape:	 torch.Size([1, 192, 12, 12])
+    Sequential output shape:	 torch.Size([1, 480, 6, 6])
+    Sequential output shape:	 torch.Size([1, 832, 3, 3])
+    Sequential output shape:	 torch.Size([1, 1024])
+    Linear output shape:	 torch.Size([1, 10])
+
+
+##### 7.4.3 训练模型
+
+
+```python
+lr, num_epochs, batch_size = 0.1, 20, 128
+train_iter, test_iter = d2l.load_data_fashion_mnist(batch_size, resize=96)
+d2l.train_ch6(net, train_iter, test_iter, num_epochs, lr, torch.device('mps'))
+```
+
+    loss 0.169, train acc 0.935, test acc 0.910
+    3272.7 examples/sec on mps
+
+
+
+    
+![svg](Chapter7_%E7%8E%B0%E4%BB%A3%E5%8D%B7%E7%A7%AF%E7%A5%9E%E7%BB%8F%E7%BD%91%E7%BB%9C%E5%85%B6%E4%BA%8C_files/Chapter7_%E7%8E%B0%E4%BB%A3%E5%8D%B7%E7%A7%AF%E7%A5%9E%E7%BB%8F%E7%BD%91%E7%BB%9C%E5%85%B6%E4%BA%8C_14_1.svg)
+    
+
