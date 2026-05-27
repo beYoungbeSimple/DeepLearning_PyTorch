@@ -541,3 +541,73 @@ show_bboxes(fig.axes, anchors * bbox_scale,
 ![svg](Chapter13_%E8%AE%A1%E7%AE%97%E6%9C%BA%E8%A7%86%E8%A7%89_%E5%85%B6%E4%BA%8C_files/Chapter13_%E8%AE%A1%E7%AE%97%E6%9C%BA%E8%A7%86%E8%A7%89_%E5%85%B6%E4%BA%8C_42_0.svg)
     
 
+
+#### 13.5 多尺度目标检测
+##### 13.5.1 多尺度描框
+在输入图像中均匀抽样一部分像素，以此为中心生成描框。使用较小的描框检测较小的目标，可以抽样较多区域，使用较大的描框检测较大的目标，可以抽样较少区域。
+
+
+```python
+img = d2l.plt.imread('./img/catdog.jpg')
+h, w = img.shape[:2]
+h, w
+```
+
+
+
+
+    (561, 728)
+
+
+
+定义```display_anchors()```，在特征图```fmap```生成描框```anchors```，每个像素作为描框的中心。
+
+
+```python
+def display_anchors(fmap_w, fmap_h, s):
+    d2l.set_figsize()
+    # 前两个维度上的值不影响输出
+    fmap = torch.zeros((1, 10, fmap_h, fmap_w))
+    anchors = d2l.multibox_prior(fmap, sizes=s, ratios=[1, 2, 0.5])
+    bbox_scale = torch.tensor((w, h, w, h))
+    d2l.show_bboxes(d2l.plt.imshow(img).axes,
+                    anchors[0] * bbox_scale)
+```
+
+
+```python
+display_anchors(fmap_w=4, fmap_h=4, s=[0.15])
+```
+
+
+    
+![svg](Chapter13_%E8%AE%A1%E7%AE%97%E6%9C%BA%E8%A7%86%E8%A7%89_%E5%85%B6%E4%BA%8C_files/Chapter13_%E8%AE%A1%E7%AE%97%E6%9C%BA%E8%A7%86%E8%A7%89_%E5%85%B6%E4%BA%8C_47_0.svg)
+    
+
+
+
+```python
+display_anchors(fmap_w=2, fmap_h=2, s=[0.4])
+```
+
+
+    
+![svg](Chapter13_%E8%AE%A1%E7%AE%97%E6%9C%BA%E8%A7%86%E8%A7%89_%E5%85%B6%E4%BA%8C_files/Chapter13_%E8%AE%A1%E7%AE%97%E6%9C%BA%E8%A7%86%E8%A7%89_%E5%85%B6%E4%BA%8C_48_0.svg)
+    
+
+
+
+```python
+display_anchors(fmap_w=1, fmap_h=1, s=[0.8])
+```
+
+
+    
+![svg](Chapter13_%E8%AE%A1%E7%AE%97%E6%9C%BA%E8%A7%86%E8%A7%89_%E5%85%B6%E4%BA%8C_files/Chapter13_%E8%AE%A1%E7%AE%97%E6%9C%BA%E8%A7%86%E8%A7%89_%E5%85%B6%E4%BA%8C_49_0.svg)
+    
+
+
+##### 13.5.2 多尺度检测
+- 基于卷积神经网络的多尺度目标检测：
+
+假设有$c$张$h\times w$的特征图，生成$h\cdot w$组描框，每组有$a$个中心相同的描框。当不同层的特征图在输入图像中分别拥有不同大小的感受野时，可以用于检测不同大小的目标。可以设计一个神经网路，靠经输出层的特征图单元具有更大的感受野，则可以在输入图像中检测较大的目标，即利用深层神经网络在多个层次上对图像进行分层表示，从而实现多尺度目标检测。
